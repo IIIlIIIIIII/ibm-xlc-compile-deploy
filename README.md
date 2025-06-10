@@ -15,24 +15,23 @@ CTRL+SHIFT+P
     "ftpConfig": {
         "host": "10.210.69.20",
         "port": 22,
-        "username": "zh2devap",
-        "password": "zh2devap",
-        "remoteSrc": "/home/zh2devap/wfview/dev/mm/src",
-        "remoteInc": "/home/zh2devap/wfview/dev/mm/inc",
-        "remoteMak": "/home/zh2devap/wfview/dev/mm/mak03",
-        "compilePath": "/home/zh2devap/wfview/dev/mm/mak03",
-        "deployPath": "/home/zh2devap/wfview/prod/mm/sh",
-        "compileTXCommand": "cd /home/zh2devap/wfview/dev/mm/mak03 && ./make.sh",
-        "compileBATCommand": "cd /home/zh2devap/wfview/dev/mm/mak03 && ./make.sh",
-        "deployTXCommand": "cd /home/zh2devap/wfview/prod/mm/sh && ./PwMmCopyDev03.ksh",
-        "deployBATCommand": "cd /home/zh2devap/wfview/prod/mm/sh && ./BATPwMmCopyDev03.ksh"
+        "username": "username",
+        "password": "password",
+        "remoteSrc": "/home/username/wfview/dev/mm/src",
+        "remoteInc": "/home/username/wfview/dev/mm/inc",
+        "remoteMak": "/home/username/wfview/dev/mm/mak03",
+        "compilePath": "/home/username/wfview/dev/mm/mak03",
+        "deployPath": "/home/username/wfview/prod/mm/sh",
+        "compileTXCommand": "cd /home/username/wfview/dev/mm/mak03 && ./make.sh",
+        "compileBATCommand": "cd /home/username/wfview/dev/mm/mak03 && ./make.sh",
+        "deployTXCommand": "cd /home/username/wfview/prod/mm/sh && ./PwMmCopyDev03.ksh",
+        "deployBATCommand": "cd /home/username/wfview/prod/mm/sh && ./BATPwMmCopyDev03.ksh"
     }
 }
 ```
 
-
 - XLC上传代码:仅上传当前窗口文件
-- XLC编译代码:上传inc所有文件,根据当前窗口的代码文件名提取TX_ID或者BAT_ID,将对应的queproc文件,sqc文件,mak文件,以及tx_list.mak,上传完毕后调用编译脚本,但是不发布
+- XLC编译代码:上传inc所有文件,根据当前窗口的代码文件名提取TX_ID或者BAT_ID,将对应的queproc文件,sqc文件,mak文件,以及tx_list.mak,上传完毕后调用编译脚本,最后确认是否发布
 编译脚本make.sh如下
 ```
 #!/bin/sh
@@ -87,9 +86,9 @@ echo "start end TX..."
 PwMmEndOneTx.ksh $1
 sleep 1
 echo "start copy bnd and queproc"
-cp -rp /home/zh2devap/wfview/dev/mm/bnd03/tx$1* /home/zh2devap/wfview/prod/mm/bnd
-cp -rp /home/zh2devap/wfview/dev/mm/bin03/queproc$1 /home/zh2devap/wfview/prod/mm/bin
-cd /home/zh2devap/wfview/prod/mm/sh
+cp -rp /home/username/wfview/dev/mm/bnd03/tx$1* /home/username/wfview/prod/mm/bnd
+cp -rp /home/username/wfview/dev/mm/bin03/queproc$1 /home/username/wfview/prod/mm/bin
+cd /home/username/wfview/prod/mm/sh
 sh bindxmOne.ksh tx$1
 sleep 1
 fi
@@ -105,9 +104,9 @@ echo "start end BAT..."
 PwMmEndOneTx.ksh $1
 sleep 1
 echo "start copy BAT"
-cp -p /home/zh2devap/wfview/dev/mm/bnd03/$1* /home/zh2devap/wfview/prod/mm/bnd
-cp -p /home/zh2devap/wfview/dev/mm/bin03/$1 /home/zh2devap/wfview/prod/mm/bin
-cd /home/zh2devap/wfview/prod/mm/sh
+cp -p /home/username/wfview/dev/mm/bnd03/$1* /home/username/wfview/prod/mm/bnd
+cp -p /home/username/wfview/dev/mm/bin03/$1 /home/username/wfview/prod/mm/bin
+cd /home/username/wfview/prod/mm/sh
 sh bindxmOne.ksh $1
 sleep 1
 fi

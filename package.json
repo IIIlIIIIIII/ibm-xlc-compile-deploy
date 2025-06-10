@@ -1,62 +1,61 @@
 {
-    "name": "ibm-xlc-compile-deploy",
-    "displayName": "IBM XLC Compile & Deploy",
-    "description": "ibm-xlc-compile-deploy",
-    "author": "白色黄昏",
-    "publisher": "baisehuanghun",
-    "icon": "./icon.png",
-    "version": "0.0.4",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/IIIlIIIIIII/ibm-xlc-compile-deploy.git"
-    },
-    "engines": {
-        "vscode": "^1.100.0"
-    },
-    "categories": [
-        "Debuggers"
-    ],
-    "activationEvents": [],
-    "main": "./dist/extension.js",
-    "contributes": {
-        "commands": [
-            {
-                "command": "ibm-xlc-compile-deploy.configureMappings",
-                "title": "XLC配置路径"
-            },
-            {
-                "command": "ibm-xlc-compile-deploy.upload",
-                "title": "XLC上传代码"
-            },
-            {
-                "command": "ibm-xlc-compile-deploy.compileXLC",
-                "title": "XLC编译代码"
-            },
-            {
-                "command": "ibm-xlc-compile-deploy.deployXLC",
-                "title": "XLC部署代码"
-            }
-        ]
-    },
-    "scripts": {
-        "vscode:prepublish": "npm run compile",
-        "compile": "tsc -p .",
-        "watch": "tsc -watch -p .",
-        "lint": "eslint src"
-    },
-    "devDependencies": {
-        "@types/mocha": "^10.0.10",
-        "@types/node": "20.x",
-        "@types/ssh2-sftp-client": "^9.0.4",
-        "@types/vscode": "^1.100.0",
-        "@typescript-eslint/eslint-plugin": "^8.31.1",
-        "@typescript-eslint/parser": "^8.31.1",
-        "@vscode/test-cli": "^0.0.10",
-        "@vscode/test-electron": "^2.5.2",
-        "eslint": "^9.25.1",
-        "ts-loader": "^9.5.2",
-        "typescript": "^5.8.3",
-        "webpack": "^5.99.7",
-        "webpack-cli": "^6.0.1"
-    }
+  "name": "ibm-xlc-compile-deploy",
+  "displayName": "IBM XLC Compile & Deploy",
+  "description": "ibm-xlc-compile-deploy",
+  "author": "白色黄昏",
+  "publisher": "baisehuanghun",
+  "icon": "icon.png",
+  "version": "0.0.7",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "activationEvents": [
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "ibm-xlc-compile-deploy.configureMappings",
+        "title": "XLC配置路径"
+      },
+      {
+        "command": "ibm-xlc-compile-deploy.upload",
+        "title": "XLC上传代码"
+      },
+      {
+        "command": "ibm-xlc-compile-deploy.compileXLC",
+        "title": "XLC编译代码"
+      },
+      {
+        "command": "ibm-xlc-compile-deploy.deployXLC",
+        "title": "XLC部署代码"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "prepublish": "npm run build",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.100.0",
+    "ts-node": "^10.x",
+    "typescript": "^4.x",
+    "vsce": "^2.25.0"
+  },
+  "dependencies": {
+    "ssh2": "^1.16.0",
+    "ssh2-sftp-client": "^12.0.0"
+  },
+  "keywords": ["xlc", "ibm", "aix", "deploy", "compile", "sftp", "ssh"],
+  "categories": ["Other"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/baisehuanghun/xlc-compile-deploy.git"
+  },
+  "bugs": {
+    "url": "https://github.com/baisehuanghun/xlc-compile-deploy/issues"
+  }
 }

@@ -1,0 +1,21 @@
+{
+  "localConfig": {
+    "src": "src",
+    "inc": "inc",
+    "mak": "mak"
+  },
+  "ftpConfig": {
+    "host": "your.ftp.server",
+    "port": 22,
+    "username": "ftpuser",
+    "password": "ftppassword",
+    "privateKey": "",
+    "remoteSrc": "/home/defaultCompilePath/src",
+    "remoteInc": "/home/defaultCompilePath/inc",
+    "remoteMak": "/home/defaultCompilePath/mak",
+    "compileTXCommand": "cd /home/defaultCompilePath/mak && ./buildTX.sh",
+    "compileBATCommand": "cd /home/defaultCompilePath/mak && ./buildBAT.sh",
+    "deployTXCommand": "cd /home/defaultCompilePath && ./deployTX.ksh",
+    "deployBATCommand": "cd /home/defaultCompilePath && ./deployBAT.ksh"
+  }
+}

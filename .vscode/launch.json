@@ -2,23 +2,17 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run Extension",
-      "type": "extensionHost",
+      "type": "pwa-extensionHost",
       "request": "launch",
-      "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}",
-        "--enable-proposed-api"  // 可选：如需实验性API
-      ],
-      "outFiles": [
-        "${workspaceFolder}/dist/**/*.js",
-        "!**/node_modules/**"
-      ],
-      "sourceMaps": true,        // 显式启用
+      "name": "Run Extension",
+      "runtimeExecutable": "${execPath}",
+      "runtimeArgs": ["--extensionDevelopmentPath=${workspaceFolder}"],
+      "restart": true,
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
       "preLaunchTask": "npm: watch",
-      "resolveSourceMapLocations": [
-        "${workspaceFolder}/**",
-        "!**/node_modules/**"
-      ]
+      "outFiles": ["${workspaceFolder}/**/*.js"],
+      "problemMatcher": ["$tsc-watch"]
     }
   ]
 }

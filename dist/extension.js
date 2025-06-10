@@ -1,0 +1,394 @@
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.activate = void 0;
+const vscode = __importStar(require("vscode"));
+const fs = __importStar(require("fs"));
+const path = __importStar(require("path"));
+const ssh2_sftp_client_1 = __importDefault(require("ssh2-sftp-client"));
+const ssh2_1 = require("ssh2");
+// 输出通道
+let outputChannel;
+// 日志工具
+function log(...messages) {
+    const text = messages.map(m => typeof m === 'string' ? m : JSON.stringify(m, null, 2)).join(' ');
+    outputChannel.appendLine(text);
+}
+/**
+ * 将本地文件上传至远程服务器 (SFTP)
+ */
+function uploadFile(localPath, localBase, remoteBase, ftpConfig, workspaceFolder, outputChannel) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const sftp = new ssh2_sftp_client_1.default();
+        const absLocalPath = path.join(workspaceFolder, localPath);
+        const relativeToBase = path.relative(localBase, localPath).replace(/\\/g, '/');
+        const remotePath = path.posix.join(remoteBase, relativeToBase);
+        outputChannel.appendLine(`连接 SFTP 上传文件: ${absLocalPath} -> ${remotePath}`);
+        try {
+            yield sftp.connect(ftpConfig);
+            yield sftp.put(absLocalPath, remotePath);
+            outputChannel.appendLine(`上传完成: ${remotePath}`);
+        }
+        catch (err) {
+            outputChannel.appendLine(`上传失败: ${err}`);
+            throw err;
+        }
+        finally {
+            yield sftp.end();
+        }
+    });
+}
+function uploadFolder(localFolder, remoteFolder, ftpConfig, workspaceFolder, outputChannel) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const sftp = new ssh2_sftp_client_1.default();
+        yield sftp.connect(ftpConfig);
+        const uploadDir = (localDir, remoteDir) => __awaiter(this, void 0, void 0, function* () {
+            const absLocalDir = path.join(workspaceFolder, localDir);
+            const entries = fs.readdirSync(absLocalDir, { withFileTypes: true });
+            try {
+                yield sftp.mkdir(remoteDir, true);
+                outputChannel.appendLine(`创建远程目录: ${remoteDir}`);
+            }
+            catch (_) {
+                outputChannel.appendLine(`远程目录已存在: ${remoteDir}`);
+            }
+            for (const entry of entries) {
+                const localEntryRel = path.join(localDir, entry.name);
+                const absLocalEntryPath = path.join(workspaceFolder, localEntryRel);
+                const remoteEntryPath = path.posix.join(remoteDir, entry.name);
+                if (entry.isDirectory()) {
+                    yield uploadDir(localEntryRel, remoteEntryPath);
+                }
+                else {
+                    outputChannel.appendLine(`上传: ${absLocalEntryPath} -> ${remoteEntryPath}`);
+                    yield sftp.put(absLocalEntryPath, remoteEntryPath);
+                }
+            }
+        });
+        yield uploadDir(localFolder, remoteFolder);
+        outputChannel.appendLine('文件夹上传完成');
+        outputChannel.show(true);
+        yield sftp.end();
+    });
+}
+/**
+ * 执行远程命令 (SSH)
+ */
+function runRemoteCommand(config, command, title, outputChannel) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return new Promise((resolve, reject) => {
+            const conn = new ssh2_1.Client();
+            outputChannel.appendLine(`[SSH] 开始连接: ${config.username}@${config.host}:${config.port}`);
+            outputChannel.show(true);
+            let fullOutput = ''; // 缓存所有输出内容
+            conn.on('ready', () => {
+                outputChannel.appendLine(`[SSH] 连接成功，执行命令: ${command}`);
+                // 使用类型断言访问 shell 方法
+                conn.shell((err, stream) => {
+                    if (err) {
+                        outputChannel.appendLine(`[SSH] 启动shell失败: ${err.message}`);
+                        conn.end();
+                        reject(err);
+                        return;
+                    }
+                    stream.on('close', () => {
+                        outputChannel.appendLine(`[SSH] 命令执行完毕，连接关闭`);
+                        conn.end();
+                        resolve();
+                    }).on('data', (data) => {
+                        const text = data.toString();
+                        fullOutput += text;
+                        outputChannel.append(text);
+                    }).stderr.on('data', (data) => {
+                        const errText = data.toString();
+                        fullOutput += errText;
+                        outputChannel.append(`ERR: ${errText}`);
+                    });
+                    stream.write(`${command}\nexit\n`);
+                });
+            }).on('error', (err) => {
+                outputChannel.appendLine(`[SSH] 连接错误: ${err.message}`);
+                reject(err);
+            }).connect({
+                host: config.host,
+                port: config.port || 22,
+                username: config.username,
+                password: config.password,
+                privateKey: config.privateKey,
+                tryKeyboard: true
+            });
+        });
+    });
+}
+function escapeHtml(unsafe) {
+    return unsafe.replace(/[&<>"']/g, (m) => {
+        switch (m) {
+            case '&': return '&amp;';
+            case '<': return '&lt;';
+            case '>': return '&gt;';
+            case '"': return '&quot;';
+            case '\'': return '&#039;';
+            default: return m;
+        }
+    });
+}
+// 转换为 Unix 换行符
+function convertToUnixLineEndings(filePath) {
+    return new Promise((resolve, reject) => {
+        fs.readFile(filePath, 'utf8', (err, data) => {
+            if (err) {
+                return reject(err);
+            }
+            const unixData = data.replace(/\r\n/g, '\n');
+            fs.writeFile(filePath, unixData, 'utf8', (writeErr) => {
+                if (writeErr) {
+                    return reject(writeErr);
+                }
+                resolve();
+            });
+        });
+    });
+}
+// 统一异常处理包装器
+function asyncHandler(fn) {
+    return (...args) => __awaiter(this, void 0, void 0, function* () {
+        try {
+            yield fn(...args);
+        }
+        catch (err) {
+            outputChannel.appendLine(`❌ 错误: ${err.message}`);
+            outputChannel.show();
+            vscode.window.showErrorMessage(`发生错误: ${err.message}`);
+        }
+    });
+}
+function activate(context) {
+    var _a, _b;
+    outputChannel = vscode.window.createOutputChannel('XLC Deploy');
+    const workspaceFolder = (_b = (_a = vscode.workspace.workspaceFolders) === null || _a === void 0 ? void 0 : _a[0]) === null || _b === void 0 ? void 0 : _b.uri.fsPath;
+    if (!workspaceFolder) {
+        vscode.window.showErrorMessage('请先打开一个工作区');
+        return;
+    }
+    const configPath = path.join(workspaceFolder, '.ftp-mappings.json');
+    const ensureConfigFile = () => {
+        if (!fs.existsSync(configPath)) {
+            const defaultPath = '/home/defaultCompilePath';
+            const defaultConfig = {
+                localConfig: {
+                    src: 'src',
+                    inc: 'inc',
+                    mak: 'mak'
+                },
+                ftpConfig: {
+                    host: 'your.ftp.server',
+                    port: 22,
+                    username: 'ftpuser',
+                    password: 'ftppassword',
+                    privateKey: '',
+                    remoteSrc: `${defaultPath}/src`,
+                    remoteInc: `${defaultPath}/inc`,
+                    remoteMak: `${defaultPath}/mak`,
+                    compileTXCommand: `cd ${defaultPath}/mak && ./buildTX.sh`,
+                    compileBATCommand: `cd ${defaultPath}/mak && ./buildBAT.sh`,
+                    deployTXCommand: `cd ${defaultPath} && ./deployTX.ksh`,
+                    deployBATCommand: `cd ${defaultPath} && ./deployBAT.ksh`
+                }
+            };
+            fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2));
+            vscode.window.showInformationMessage('✅ 已生成默认 .ftp-mappings.json 配置文件');
+        }
+    };
+    const getConfig = () => {
+        if (!fs.existsSync(configPath)) {
+            vscode.window.showErrorMessage('.ftp-mappings.json 不存在');
+            return null;
+        }
+        return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    };
+    ensureConfigFile();
+    context.subscriptions.push(
+    // 配置映射
+    vscode.commands.registerCommand('ibm-xlc-compile-deploy.configureMappings', asyncHandler(() => __awaiter(this, void 0, void 0, function* () {
+        ensureConfigFile();
+        const doc = yield vscode.workspace.openTextDocument(configPath);
+        yield vscode.window.showTextDocument(doc);
+    }))), 
+    // 手动上传当前文件
+    vscode.commands.registerCommand('ibm-xlc-compile-deploy.upload', asyncHandler(() => __awaiter(this, void 0, void 0, function* () {
+        const config = getConfig();
+        if (!config || !config.ftpConfig)
+            return;
+        const { localConfig, ftpConfig } = config;
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            vscode.window.showErrorMessage('请先打开一个编辑的文件');
+            return;
+        }
+        const currentFilePath = editor.document.uri.fsPath;
+        const relativePath = path.relative(workspaceFolder, currentFilePath).replace(/\\/g, '/');
+        outputChannel.appendLine('当前文件: ' + currentFilePath);
+        outputChannel.appendLine('相对路径: ' + relativePath);
+        outputChannel.appendLine('工作区: ' + workspaceFolder);
+        outputChannel.show();
+        if (relativePath.startsWith(localConfig.src)) {
+            yield uploadFile(relativePath, localConfig.src, ftpConfig.remoteSrc, ftpConfig, workspaceFolder, outputChannel);
+            vscode.window.showInformationMessage('✅ src 当前文件上传完成');
+        }
+        else if (relativePath.startsWith(localConfig.mak)) {
+            yield convertToUnixLineEndings(currentFilePath);
+            yield uploadFile(relativePath, localConfig.mak, ftpConfig.remoteMak, ftpConfig, workspaceFolder, outputChannel);
+            vscode.window.showInformationMessage('✅ mak 当前文件上传完成');
+        }
+        else if (relativePath.startsWith(localConfig.inc)) {
+            yield uploadFile(relativePath, localConfig.inc, ftpConfig.remoteInc, ftpConfig, workspaceFolder, outputChannel);
+            vscode.window.showInformationMessage('✅ inc 当前文件上传完成');
+        }
+        else {
+            vscode.window.showWarningMessage('⚠️ 当前文件不在 src、mak、inc 中');
+        }
+    }))), 
+    // 编译命令
+    vscode.commands.registerCommand('ibm-xlc-compile-deploy.compileXLC', asyncHandler(() => __awaiter(this, void 0, void 0, function* () {
+        const config = getConfig();
+        if (!config || !config.ftpConfig)
+            return;
+        const { localConfig, ftpConfig } = config;
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            vscode.window.showErrorMessage('请先打开一个编辑的文件以判断编译命令');
+            return;
+        }
+        const fileName = path.basename(editor.document.uri.fsPath, path.extname(editor.document.uri.fsPath));
+        let TX_BAT_ID = '';
+        let compileCommand = '';
+        let deployCommand = '';
+        if (fileName.toUpperCase().startsWith('TX')) {
+            TX_BAT_ID = fileName.slice(2).toUpperCase();
+            compileCommand = `${ftpConfig.compileTXCommand} tx${TX_BAT_ID}.mak`;
+            deployCommand = ftpConfig.deployTXCommand;
+        }
+        else if (fileName.toUpperCase().startsWith('BAT')) {
+            TX_BAT_ID = fileName.slice(3).toUpperCase();
+            compileCommand = `${ftpConfig.compileBATCommand} bat${TX_BAT_ID}.mak`;
+            deployCommand = ftpConfig.deployBATCommand;
+        }
+        else {
+            vscode.window.showWarningMessage('⚠️ 无法识别 TX 或 BAT 开头的文件名');
+            return;
+        }
+        // 上传 inc 文件夹
+        if (localConfig.inc && ftpConfig.remoteInc) {
+            const confirmInc = yield vscode.window.showWarningMessage('是否跳过上传 inc 文件夹？', { modal: true }, '是', '否');
+            if (confirmInc === '否') {
+                yield uploadFolder(localConfig.inc, ftpConfig.remoteInc, ftpConfig, workspaceFolder, outputChannel);
+                vscode.window.showInformationMessage('✅ inc 文件夹上传完成');
+            }
+            else if (confirmInc !== '是') {
+                return;
+            }
+        }
+        // 上传 src 中匹配的文件
+        if (localConfig.src && ftpConfig.remoteSrc) {
+            const srcFiles = fs.readdirSync(path.join(workspaceFolder, localConfig.src));
+            for (const file of srcFiles) {
+                if (file.toUpperCase().includes(TX_BAT_ID)) {
+                    const relativePath = path.join(localConfig.src, file);
+                    yield uploadFile(relativePath, localConfig.src, ftpConfig.remoteSrc, ftpConfig, workspaceFolder, outputChannel);
+                }
+            }
+            vscode.window.showInformationMessage(`✅ src 中包含 ${TX_BAT_ID} 的文件已上传`);
+        }
+        // 上传 mak 中匹配的文件
+        if (localConfig.mak && ftpConfig.remoteMak) {
+            const makFiles = fs.readdirSync(path.join(workspaceFolder, localConfig.mak));
+            for (const file of makFiles) {
+                const upper = file.toUpperCase();
+                if (upper.includes(TX_BAT_ID) || upper === 'TX_LIST.MAK') {
+                    const absLocalPath = path.join(workspaceFolder, localConfig.mak, file);
+                    yield convertToUnixLineEndings(absLocalPath);
+                    const relativePath = path.join(localConfig.mak, file);
+                    yield uploadFile(relativePath, localConfig.mak, ftpConfig.remoteMak, ftpConfig, workspaceFolder, outputChannel);
+                }
+            }
+            vscode.window.showInformationMessage(`✅ mak 中包含 ${TX_BAT_ID} 的文件已上传`);
+        }
+        // 清理操作
+        const confirmClean = yield vscode.window.showWarningMessage('是否执行 clean？', { modal: true }, '确认');
+        if (confirmClean === '确认') {
+            yield runRemoteCommand(ftpConfig, compileCommand + ' clean', '清理', outputChannel);
+        }
+        // 编译操作
+        yield runRemoteCommand(ftpConfig, compileCommand, '编译', outputChannel);
+        // 部署操作
+        const confirmDeploy = yield vscode.window.showWarningMessage('是否部署？', { modal: true }, '确认');
+        if (confirmDeploy === '确认') {
+            deployCommand += ` ${TX_BAT_ID}`;
+            yield runRemoteCommand(ftpConfig, deployCommand, '部署', outputChannel);
+        }
+    }))), 
+    // 部署命令
+    vscode.commands.registerCommand('ibm-xlc-compile-deploy.deployXLC', asyncHandler(() => __awaiter(this, void 0, void 0, function* () {
+        const config = getConfig();
+        if (!config || !config.ftpConfig)
+            return;
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            vscode.window.showErrorMessage('请先打开一个编辑的文件以判断部署命令');
+            return;
+        }
+        const fileName = path.basename(editor.document.uri.fsPath, path.extname(editor.document.uri.fsPath));
+        let TX_BAT_ID = '';
+        let deployCommand = '';
+        if (fileName.toUpperCase().startsWith('TX')) {
+            TX_BAT_ID = fileName.slice(2).toUpperCase();
+            deployCommand = config.ftpConfig.deployTXCommand;
+        }
+        else if (fileName.toUpperCase().startsWith('BAT')) {
+            TX_BAT_ID = fileName.slice(3).toUpperCase();
+            deployCommand = config.ftpConfig.deployBATCommand;
+        }
+        else {
+            vscode.window.showWarningMessage('⚠️ 无法识别 TX 或 BAT 开头的文件名');
+            return;
+        }
+        deployCommand += ` ${TX_BAT_ID}`;
+        yield runRemoteCommand(config.ftpConfig, deployCommand, '发布', outputChannel);
+    }))));
+    vscode.window.showInformationMessage('✅ XLC 编译部署插件已激活');
+}
+exports.activate = activate;
