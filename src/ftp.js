@@ -41,17 +41,33 @@ exports.uploadFolder = uploadFolder;
 const ssh2_sftp_client_1 = __importDefault(require("ssh2-sftp-client"));
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
-async function uploadFile(localPath, localBase, remoteBase, ftpConfig, workspaceFolder) {
+const vscode = __importStar(require("vscode"));
+const outputChannel = vscode.window.createOutputChannel('XLC Deploy');
+function log(...messages) {
+    const text = messages.map(m => typeof m === 'string' ? m : JSON.stringify(m, null, 2)).join(' ');
+    outputChannel.appendLine(text);
+}
+async function uploadFile(localPath, localBase, remoteBase, ftpConfig, workspaceFolder, outputChannel) {
     const sftp = new ssh2_sftp_client_1.default();
-    // 转换为绝对路径
     const absLocalPath = path.join(workspaceFolder, localPath);
     const relativeToBase = path.relative(localBase, localPath).replace(/\\/g, '/');
     const remotePath = path.posix.join(remoteBase, relativeToBase);
-    await sftp.connect(ftpConfig);
-    await sftp.put(absLocalPath, remotePath);
-    await sftp.end();
+    outputChannel.appendLine(`连接 SFTP 上传文件: ${absLocalPath} -> ${remotePath}`);
+    try {
+        await sftp.connect(ftpConfig);
+        await sftp.put(absLocalPath, remotePath);
+        outputChannel.appendLine(`上传完成: ${remotePath}`);
+    }
+    catch (err) {
+        outputChannel.appendLine(`上传失败: ${err}`);
+        throw err;
+    }
+    finally {
+        await sftp.end();
+    }
 }
-async function uploadFolder(localFolder, remoteFolder, ftpConfig, workspaceFolder) {
+async function uploadFolder(localFolder, remoteFolder, ftpConfig, workspaceFolder, outputChannel // 新增参数
+) {
     const sftp = new ssh2_sftp_client_1.default();
     await sftp.connect(ftpConfig);
     const uploadDir = async (localDir, remoteDir) => {
@@ -59,21 +75,29 @@ async function uploadFolder(localFolder, remoteFolder, ftpConfig, workspaceFolde
         const entries = fs.readdirSync(absLocalDir, { withFileTypes: true });
         try {
             await sftp.mkdir(remoteDir, true);
+            outputChannel.appendLine(`创建远程目录: ${remoteDir}`);
+            outputChannel.show(true);
         }
-        catch (_) { }
+        catch (_) {
+            outputChannel.appendLine(`远程目录已存在: ${remoteDir}`);
+            outputChannel.show(true);
+        }
         for (const entry of entries) {
-            const localEntryRel = path.join(localDir, entry.name); // 相对路径，递归用
+            const localEntryRel = path.join(localDir, entry.name);
             const absLocalEntryPath = path.join(workspaceFolder, localEntryRel);
             const remoteEntryPath = path.posix.join(remoteDir, entry.name);
             if (entry.isDirectory()) {
                 await uploadDir(localEntryRel, remoteEntryPath);
             }
             else {
+                outputChannel.appendLine(`上传: ${absLocalEntryPath} -> ${remoteEntryPath}`);
                 await sftp.put(absLocalEntryPath, remoteEntryPath);
             }
         }
     };
     await uploadDir(localFolder, remoteFolder);
+    outputChannel.appendLine('文件夹上传完成');
+    outputChannel.show(true);
     await sftp.end();
 }
 //# sourceMappingURL=ftp.js.map

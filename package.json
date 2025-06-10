@@ -5,7 +5,7 @@
     "author": "白色黄昏",
     "publisher": "baisehuanghun",
     "icon": "./icon.png",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "repository": {
         "type": "git",
         "url": "https://github.com/IIIlIIIIIII/ibm-xlc-compile-deploy.git"
@@ -34,7 +34,7 @@
             },
             {
                 "command": "ibm-xlc-compile-deploy.deployXLC",
-                "title": "XLC发布代码"
+                "title": "XLC部署代码"
             }
         ]
     },

@@ -15,17 +15,17 @@ CTRL+SHIFT+P
     "ftpConfig": {
         "host": "10.210.69.20",
         "port": 22,
-        "username": "zh2dev2",
-        "password": "zh2dev2",
-        "remoteSrc": "/home/zh2dev2/wfview/dev/mm/src",
-        "remoteInc": "/home/zh2dev2/wfview/dev/mm/inc",
-        "remoteMak": "/home/zh2dev2/wfview/dev/mm/mak03",
-        "compilePath": "/home/zh2dev2/wfview/dev/mm/mak03",
-        "deployPath": "/home/zh2dev2/wfview/prod/mm/sh",
-        "compileTXCommand": "cd /home/zh2dev2/wfview/dev/mm/mak03 && ./make.sh",
-        "compileBATCommand": "cd /home/zh2dev2/wfview/dev/mm/mak03 && ./make.sh",
-        "deployTXCommand": "cd /home/zh2dev2/wfview/prod/mm/sh && ./PwMmCopyDev03.ksh",
-        "deployBATCommand": "cd /home/zh2dev2/wfview/prod/mm/sh && ./BATPwMmCopyDev03.ksh"
+        "username": "zh2devap",
+        "password": "zh2devap",
+        "remoteSrc": "/home/zh2devap/wfview/dev/mm/src",
+        "remoteInc": "/home/zh2devap/wfview/dev/mm/inc",
+        "remoteMak": "/home/zh2devap/wfview/dev/mm/mak03",
+        "compilePath": "/home/zh2devap/wfview/dev/mm/mak03",
+        "deployPath": "/home/zh2devap/wfview/prod/mm/sh",
+        "compileTXCommand": "cd /home/zh2devap/wfview/dev/mm/mak03 && ./make.sh",
+        "compileBATCommand": "cd /home/zh2devap/wfview/dev/mm/mak03 && ./make.sh",
+        "deployTXCommand": "cd /home/zh2devap/wfview/prod/mm/sh && ./PwMmCopyDev03.ksh",
+        "deployBATCommand": "cd /home/zh2devap/wfview/prod/mm/sh && ./BATPwMmCopyDev03.ksh"
     }
 }
 ```
@@ -87,9 +87,9 @@ echo "start end TX..."
 PwMmEndOneTx.ksh $1
 sleep 1
 echo "start copy bnd and queproc"
-cp -rp /home/zh2dev2/wfview/dev/mm/bnd03/tx$1* /home/zh2dev2/wfview/prod/mm/bnd
-cp -rp /home/zh2dev2/wfview/dev/mm/bin03/queproc$1 /home/zh2dev2/wfview/prod/mm/bin
-cd /home/zh2dev2/wfview/prod/mm/sh
+cp -rp /home/zh2devap/wfview/dev/mm/bnd03/tx$1* /home/zh2devap/wfview/prod/mm/bnd
+cp -rp /home/zh2devap/wfview/dev/mm/bin03/queproc$1 /home/zh2devap/wfview/prod/mm/bin
+cd /home/zh2devap/wfview/prod/mm/sh
 sh bindxmOne.ksh tx$1
 sleep 1
 fi
@@ -105,9 +105,9 @@ echo "start end BAT..."
 PwMmEndOneTx.ksh $1
 sleep 1
 echo "start copy BAT"
-cp -p /home/zh2dev2/wfview/dev/mm/bnd03/$1* /home/zh2dev2/wfview/prod/mm/bnd
-cp -p /home/zh2dev2/wfview/dev/mm/bin03/$1 /home/zh2dev2/wfview/prod/mm/bin
-cd /home/zh2dev2/wfview/prod/mm/sh
+cp -p /home/zh2devap/wfview/dev/mm/bnd03/$1* /home/zh2devap/wfview/prod/mm/bnd
+cp -p /home/zh2devap/wfview/dev/mm/bin03/$1 /home/zh2devap/wfview/prod/mm/bin
+cd /home/zh2devap/wfview/prod/mm/sh
 sh bindxmOne.ksh $1
 sleep 1
 fi

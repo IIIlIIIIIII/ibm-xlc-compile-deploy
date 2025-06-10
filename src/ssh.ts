@@ -9,75 +9,40 @@ export interface SSHConfig {
 }
 
 /**
- * 通过SSH执行远程命令（伪终端模式），支持交互式输出到VSCode的输出通道，
- * 并且命令执行完成后弹出一个带滚动条的Webview面板显示完整返回结果
+ * 通过SSH执行远程命令（伪终端模式），将输出写入传入的 outputChannel，
+ * 并在命令执行结束后以Webview面板方式展示完整结果
  * @param config SSH连接配置
  * @param command 远程执行的命令
- * @param title 用于输出通道标题和Webview面板标题
+ * @param title 用于Webview面板标题
+ * @param outputChannel VSCode统一输出通道
  */
-export async function runRemoteCommand(config: SSHConfig, command: string, title: string): Promise<void> {
+export async function runRemoteCommand(
+    config: SSHConfig,
+    command: string,
+    title: string,
+    outputChannel: vscode.OutputChannel
+): Promise<void> {
     return new Promise((resolve, reject) => {
         const conn = new Client();
-        const outputChannel = vscode.window.createOutputChannel(title);
+        outputChannel.appendLine(`[SSH] 开始连接: ${config.username}@${config.host}:${config.port}`);
         outputChannel.show(true);
 
-        let fullOutput = ''; // 用于缓存所有输出文本
+        let fullOutput = ''; // 缓存所有输出内容
 
         conn.on('ready', () => {
-            outputChannel.appendLine(`SSH连接成功，开始执行命令: ${command}`);
+            outputChannel.appendLine(`[SSH] 连接成功，执行命令: ${command}`);
 
             conn.shell((err, stream) => {
                 if (err) {
-                    outputChannel.appendLine(`开启终端失败: ${err.message}`);
+                    outputChannel.appendLine(`[SSH] 启动shell失败: ${err.message}`);
                     conn.end();
                     reject(err);
                     return;
                 }
 
                 stream.on('close', () => {
-                    outputChannel.appendLine('命令执行结束，终端关闭');
+                    outputChannel.appendLine(`[SSH] 命令执行完毕，连接关闭`);
                     conn.end();
-
-                    // 创建Webview面板显示完整输出
-                    const panel = vscode.window.createWebviewPanel(
-                        'sshCommandOutput',
-                        `${title} - 命令输出`,
-                        vscode.ViewColumn.One,
-                        { enableScripts: true }
-                    );
-
-                    // 用 <pre> 保持格式，并加滚动条
-                    panel.webview.html = `
-            <!DOCTYPE html>
-            <html lang="zh-cn">
-            <head>
-              <meta charset="UTF-8" />
-              <title>${title} - 输出结果</title>
-              <style>
-                body {
-                  font-family: Consolas, 'Courier New', monospace;
-                  margin: 0; padding: 10px;
-                  background-color: #1e1e1e;
-                  color: #d4d4d4;
-                }
-                pre {
-                  white-space: pre-wrap;
-                  word-break: break-word;
-                  max-height: 90vh;
-                  overflow: auto;
-                  padding: 10px;
-                  border: 1px solid #333;
-                  background-color: #252526;
-                }
-              </style>
-            </head>
-            <body>
-              <h3>命令: <code>${command}</code></h3>
-              <pre>${escapeHtml(fullOutput)}</pre>
-            </body>
-            </html>
-          `;
-
                     resolve();
                 }).on('data', (data: Buffer) => {
                     const text = data.toString();
@@ -92,7 +57,7 @@ export async function runRemoteCommand(config: SSHConfig, command: string, title
                 stream.write(`${command}\nexit\n`);
             });
         }).on('error', (err) => {
-            outputChannel.appendLine(`SSH连接错误: ${err.message}`);
+            outputChannel.appendLine(`[SSH] 连接错误: ${err.message}`);
             reject(err);
         }).connect({
             host: config.host,
@@ -104,9 +69,8 @@ export async function runRemoteCommand(config: SSHConfig, command: string, title
     });
 }
 
-// 简单转义HTML，防止输出里有特殊字符破坏页面结构
 function escapeHtml(unsafe: string): string {
-    return unsafe.replace(/[&<>"']/g, function (m) {
+    return unsafe.replace(/[&<>"']/g, (m) => {
         switch (m) {
             case '&': return '&amp;';
             case '<': return '&lt;';
