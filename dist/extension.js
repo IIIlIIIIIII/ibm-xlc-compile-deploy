@@ -108,25 +108,23 @@ function uploadFolder(localFolder, remoteFolder, ftpConfig, workspaceFolder, out
 /**
  * 执行远程命令 (SSH)
  */
-function runRemoteCommand(config, command, title, outputChannel) {
+function runRemoteCommands(config, commands, title, outputChannel) {
     return __awaiter(this, void 0, void 0, function* () {
         return new Promise((resolve, reject) => {
             const conn = new ssh2_1.Client();
             outputChannel.appendLine(`[SSH] 开始连接: ${config.username}@${config.host}:${config.port}`);
             outputChannel.show(true);
-            let fullOutput = ''; // 缓存所有输出内容
+            let fullOutput = '';
             conn.on('ready', () => {
-                outputChannel.appendLine(`[SSH] 连接成功，执行命令: ${command}`);
-                // 使用类型断言访问 shell 方法
+                outputChannel.appendLine(`[SSH] 连接成功，开始执行命令序列...`);
                 conn.shell((err, stream) => {
                     if (err) {
-                        outputChannel.appendLine(`[SSH] 启动shell失败: ${err.message}`);
+                        outputChannel.appendLine(`[SSH] shell 启动失败: ${err.message}`);
                         conn.end();
-                        reject(err);
-                        return;
+                        return reject(err);
                     }
                     stream.on('close', () => {
-                        outputChannel.appendLine(`[SSH] 命令执行完毕，连接关闭`);
+                        outputChannel.appendLine(`[SSH] 所有命令执行完毕，关闭连接`);
                         conn.end();
                         resolve();
                     }).on('data', (data) => {
@@ -138,7 +136,11 @@ function runRemoteCommand(config, command, title, outputChannel) {
                         fullOutput += errText;
                         outputChannel.append(`ERR: ${errText}`);
                     });
-                    stream.write(`${command}\nexit\n`);
+                    // 执行命令队列
+                    for (const cmd of commands) {
+                        stream.write(`${cmd}\n`);
+                    }
+                    stream.write('exit\n');
                 });
             }).on('error', (err) => {
                 outputChannel.appendLine(`[SSH] 连接错误: ${err.message}`);
@@ -265,6 +267,10 @@ function activate(context) {
         outputChannel.appendLine('相对路径: ' + relativePath);
         outputChannel.appendLine('工作区: ' + workspaceFolder);
         outputChannel.show();
+        const confirmUpload = yield vscode.window.showWarningMessage(`是否上传本地文件: ${relativePath}`, { modal: true }, '是');
+        if (confirmUpload !== '是') {
+            return;
+        }
         if (relativePath.startsWith(localConfig.src)) {
             yield uploadFile(relativePath, localConfig.src, ftpConfig.remoteSrc, ftpConfig, workspaceFolder, outputChannel);
             vscode.window.showInformationMessage('✅ src 当前文件上传完成');
@@ -347,18 +353,18 @@ function activate(context) {
             }
             vscode.window.showInformationMessage(`✅ mak 中包含 ${TX_BAT_ID} 的文件已上传`);
         }
-        // 清理操作
-        const confirmClean = yield vscode.window.showWarningMessage('是否执行 clean？', { modal: true }, '确认');
+        const commands = [];
+        const confirmClean = yield vscode.window.showWarningMessage('是否清理？', { modal: true }, '确认');
         if (confirmClean === '确认') {
-            yield runRemoteCommand(ftpConfig, compileCommand + ' clean', '清理', outputChannel);
+            commands.push(compileCommand + ' clean');
         }
-        // 编译操作
-        yield runRemoteCommand(ftpConfig, compileCommand, '编译', outputChannel);
-        // 部署操作
+        commands.push(compileCommand);
         const confirmDeploy = yield vscode.window.showWarningMessage('是否部署？', { modal: true }, '确认');
         if (confirmDeploy === '确认') {
-            deployCommand += ` ${TX_BAT_ID}`;
-            yield runRemoteCommand(ftpConfig, deployCommand, '部署', outputChannel);
+            commands.push(deployCommand + ` ${TX_BAT_ID}`);
+        }
+        if (commands.length > 0) {
+            yield runRemoteCommands(ftpConfig, commands, '清理-编译-部署', outputChannel);
         }
     }))), 
     // 部署命令
@@ -387,7 +393,14 @@ function activate(context) {
             return;
         }
         deployCommand += ` ${TX_BAT_ID}`;
-        yield runRemoteCommand(config.ftpConfig, deployCommand, '发布', outputChannel);
+        const commands = [];
+        const confirmDeploy = yield vscode.window.showWarningMessage('是否部署？', { modal: true }, '确认');
+        if (confirmDeploy === '确认') {
+            commands.push(deployCommand + ` ${TX_BAT_ID}`);
+        }
+        if (commands.length > 0) {
+            yield runRemoteCommands(config.ftpConfig, commands, '部署', outputChannel);
+        }
     }))));
     vscode.window.showInformationMessage('✅ XLC 编译部署插件已激活');
 }

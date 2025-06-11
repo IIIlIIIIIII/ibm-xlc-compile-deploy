@@ -114,9 +114,9 @@ async function uploadFolder(
 /**
  * 执行远程命令 (SSH)
  */
-async function runRemoteCommand(
+async function runRemoteCommands(
     config: SSHConfig,
-    command: string,
+    commands: string[],
     title: string,
     outputChannel: vscode.OutputChannel
 ): Promise<void> {
@@ -126,22 +126,20 @@ async function runRemoteCommand(
         outputChannel.appendLine(`[SSH] 开始连接: ${config.username}@${config.host}:${config.port}`);
         outputChannel.show(true);
 
-        let fullOutput = ''; // 缓存所有输出内容
+        let fullOutput = '';
 
         conn.on('ready', () => {
-            outputChannel.appendLine(`[SSH] 连接成功，执行命令: ${command}`);
+            outputChannel.appendLine(`[SSH] 连接成功，开始执行命令序列...`);
 
-            // 使用类型断言访问 shell 方法
             (conn as any).shell((err: Error | null, stream: any) => {
                 if (err) {
-                    outputChannel.appendLine(`[SSH] 启动shell失败: ${err.message}`);
+                    outputChannel.appendLine(`[SSH] shell 启动失败: ${err.message}`);
                     conn.end();
-                    reject(err);
-                    return;
+                    return reject(err);
                 }
 
                 stream.on('close', () => {
-                    outputChannel.appendLine(`[SSH] 命令执行完毕，连接关闭`);
+                    outputChannel.appendLine(`[SSH] 所有命令执行完毕，关闭连接`);
                     conn.end();
                     resolve();
                 }).on('data', (data: Buffer) => {
@@ -154,7 +152,11 @@ async function runRemoteCommand(
                     outputChannel.append(`ERR: ${errText}`);
                 });
 
-                stream.write(`${command}\nexit\n`);
+                // 执行命令队列
+                for (const cmd of commands) {
+                    stream.write(`${cmd}\n`);
+                }
+                stream.write('exit\n');
             });
         }).on('error', (err: Error) => {
             outputChannel.appendLine(`[SSH] 连接错误: ${err.message}`);
@@ -294,7 +296,10 @@ export function activate(context: vscode.ExtensionContext) {
             outputChannel.appendLine('相对路径: ' + relativePath);
             outputChannel.appendLine('工作区: ' + workspaceFolder);
             outputChannel.show();
-
+            const confirmUpload = await vscode.window.showWarningMessage(`是否上传本地文件: ${relativePath}`,{ modal: true },'是');
+            if (confirmUpload !== '是') {
+                return;
+            }
             if (relativePath.startsWith(localConfig.src)) {
                 await uploadFile(relativePath, localConfig.src, ftpConfig.remoteSrc, ftpConfig, workspaceFolder, outputChannel);
                 vscode.window.showInformationMessage('✅ src 当前文件上传完成');
@@ -378,20 +383,20 @@ export function activate(context: vscode.ExtensionContext) {
                 vscode.window.showInformationMessage(`✅ mak 中包含 ${TX_BAT_ID} 的文件已上传`);
             }
 
-            // 清理操作
-            const confirmClean = await vscode.window.showWarningMessage('是否执行 clean？', { modal: true }, '确认');
+            const commands: string[] = [];
+            const confirmClean = await vscode.window.showWarningMessage('是否清理？', { modal: true }, '确认');
             if (confirmClean === '确认') {
-                await runRemoteCommand(ftpConfig, compileCommand + ' clean', '清理', outputChannel);
+                commands.push(compileCommand + ' clean');
             }
+            commands.push(compileCommand);
 
-            // 编译操作
-            await runRemoteCommand(ftpConfig, compileCommand, '编译', outputChannel);
-
-            // 部署操作
             const confirmDeploy = await vscode.window.showWarningMessage('是否部署？', { modal: true }, '确认');
             if (confirmDeploy === '确认') {
-                deployCommand += ` ${TX_BAT_ID}`;
-                await runRemoteCommand(ftpConfig, deployCommand, '部署', outputChannel);
+                commands.push(deployCommand + ` ${TX_BAT_ID}`);
+            }
+
+            if (commands.length > 0) {
+                await runRemoteCommands(ftpConfig, commands, '清理-编译-部署', outputChannel);
             }
         })),
 
@@ -422,7 +427,14 @@ export function activate(context: vscode.ExtensionContext) {
             }
 
             deployCommand += ` ${TX_BAT_ID}`;
-            await runRemoteCommand(config.ftpConfig, deployCommand, '发布', outputChannel);
+            const commands: string[] = [];
+            const confirmDeploy = await vscode.window.showWarningMessage('是否部署？', { modal: true }, '确认');
+            if (confirmDeploy === '确认') {
+                commands.push(deployCommand + ` ${TX_BAT_ID}`);
+            }
+            if (commands.length > 0) {
+                await runRemoteCommands(config.ftpConfig, commands, '部署', outputChannel);
+            }
         }))
     );
 
