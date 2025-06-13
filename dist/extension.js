@@ -319,12 +319,12 @@ function activate(context) {
         }
         // 上传 inc 文件夹
         if (localConfig.inc && ftpConfig.remoteInc) {
-            const confirmInc = yield vscode.window.showWarningMessage('是否跳过上传 inc 文件夹？', { modal: true }, '是', '否');
-            if (confirmInc === '否') {
+            const confirmInc = yield vscode.window.showWarningMessage('是否上传 inc 文件夹？', { modal: true }, '否', '是');
+            if (confirmInc === '是') {
                 yield uploadFolder(localConfig.inc, ftpConfig.remoteInc, ftpConfig, workspaceFolder, outputChannel);
                 vscode.window.showInformationMessage('✅ inc 文件夹上传完成');
             }
-            else if (confirmInc !== '是') {
+            else if (confirmInc !== '否') {
                 return;
             }
         }
@@ -353,19 +353,27 @@ function activate(context) {
             }
             vscode.window.showInformationMessage(`✅ mak 中包含 ${TX_BAT_ID} 的文件已上传`);
         }
-        const commands = [];
-        const confirmClean = yield vscode.window.showWarningMessage('是否清理？', { modal: true }, '确认');
-        if (confirmClean === '确认') {
+        let commands = [];
+        const confirmClean = yield vscode.window.showWarningMessage('是否清理？', { modal: true }, '否', '是');
+        if (confirmClean === '是') {
             commands.push(compileCommand + ' clean');
         }
         commands.push(compileCommand);
-        const confirmDeploy = yield vscode.window.showWarningMessage('是否部署？', { modal: true }, '确认');
-        if (confirmDeploy === '确认') {
+        if (commands.length > 0) {
+            yield runRemoteCommands(ftpConfig, commands, '清理-编译-部署', outputChannel);
+        }
+        commands = []; // 清空命令
+        const confirmDeploy = yield vscode.window.showWarningMessage('是否部署？', { modal: true }, '否', '是');
+        if (confirmDeploy === '是') {
             commands.push(deployCommand + ` ${TX_BAT_ID}`);
         }
         if (commands.length > 0) {
             yield runRemoteCommands(ftpConfig, commands, '清理-编译-部署', outputChannel);
         }
+        outputChannel.appendLine(`>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`);
+        outputChannel.appendLine(`>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`);
+        outputChannel.appendLine(`>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`);
+        outputChannel.show(true);
     }))), 
     // 部署命令
     vscode.commands.registerCommand('ibm-xlc-compile-deploy.deployXLC', asyncHandler(() => __awaiter(this, void 0, void 0, function* () {
@@ -398,9 +406,16 @@ function activate(context) {
         if (confirmDeploy === '确认') {
             commands.push(deployCommand + ` ${TX_BAT_ID}`);
         }
+        else {
+            return;
+        }
         if (commands.length > 0) {
             yield runRemoteCommands(config.ftpConfig, commands, '部署', outputChannel);
         }
+        outputChannel.appendLine(`>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`);
+        outputChannel.appendLine(`>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`);
+        outputChannel.appendLine(`>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`);
+        outputChannel.show(true);
     }))));
     vscode.window.showInformationMessage('✅ XLC 编译部署插件已激活');
 }
