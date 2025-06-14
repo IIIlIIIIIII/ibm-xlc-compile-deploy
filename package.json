@@ -5,11 +5,12 @@
   "author": "白色黄昏",
   "publisher": "baisehuanghun",
   "icon": "icon.png",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "engines": {
     "vscode": "^1.100.0"
   },
   "activationEvents": [
+    "onStartupFinished"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -30,7 +31,35 @@
         "command": "ibm-xlc-compile-deploy.deployXLC",
         "title": "XLC部署代码"
       }
-    ]
+    ],
+    "keybindings": [
+      {
+        "command": "ibm-xlc-compile-deploy.upload",
+        "key": "ctrl+alt+u",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "ibm-xlc-compile-deploy.compileXLC",
+        "key": "ctrl+alt+c",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "ibm-xlc-compile-deploy.deployXLC",
+        "key": "ctrl+alt+d",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "IBM XLC Compile & Deploy 配置",
+      "properties": {
+        "ibm-xlc-compile-deploy.autoSshConnect": {
+          "type": "boolean",
+          "default": false,
+          "description": "终端自动SSH连接远程服务器"
+        }
+      }
+    }
   },
   "scripts": {
     "build": "tsc -p ./",

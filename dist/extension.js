@@ -58,13 +58,16 @@ function uploadFile(localPath, localBase, remoteBase, ftpConfig, workspaceFolder
         const relativeToBase = path.relative(localBase, localPath).replace(/\\/g, '/');
         const remotePath = path.posix.join(remoteBase, relativeToBase);
         outputChannel.appendLine(`连接 SFTP 上传文件: ${absLocalPath} -> ${remotePath}`);
+        outputChannel.show();
         try {
             yield sftp.connect(ftpConfig);
             yield sftp.put(absLocalPath, remotePath);
             outputChannel.appendLine(`上传完成: ${remotePath}`);
+            outputChannel.show();
         }
         catch (err) {
             outputChannel.appendLine(`上传失败: ${err}`);
+            outputChannel.show();
             throw err;
         }
         finally {
@@ -214,7 +217,8 @@ function activate(context) {
                 localConfig: {
                     src: 'src',
                     inc: 'inc',
-                    mak: 'mak'
+                    mak: 'mak',
+                    mq: 'mq'
                 },
                 ftpConfig: {
                     host: 'your.ftp.server',
@@ -225,6 +229,7 @@ function activate(context) {
                     remoteSrc: `${defaultPath}/src`,
                     remoteInc: `${defaultPath}/inc`,
                     remoteMak: `${defaultPath}/mak`,
+                    remoteMq: `${defaultPath}/mq`,
                     compileTXCommand: `cd ${defaultPath}/mak && ./buildTX.sh`,
                     compileBATCommand: `cd ${defaultPath}/mak && ./buildBAT.sh`,
                     deployTXCommand: `cd ${defaultPath} && ./deployTX.ksh`,
@@ -242,7 +247,25 @@ function activate(context) {
         }
         return JSON.parse(fs.readFileSync(configPath, 'utf8'));
     };
-    ensureConfigFile();
+    const config = getConfig();
+    if (!config || !config.ftpConfig)
+        return;
+    vscode.window.showInformationMessage('✅ XLC 编译部署插件已激活');
+    const { localConfig, ftpConfig } = config;
+    const vscodeconfig = vscode.workspace.getConfiguration('ibm-xlc-compile-deploy');
+    const autoSshConnect = vscodeconfig.get('autoSshConnect', false);
+    if (autoSshConnect) {
+        let sshCommand = `ssh `;
+        if (ftpConfig.port && ftpConfig.port !== 22) {
+            sshCommand += `-p ${ftpConfig.port} `;
+        }
+        sshCommand += `${ftpConfig.username}@${ftpConfig.host}`;
+        // 创建终端并自动执行 ssh 命令
+        const terminal = vscode.window.createTerminal(`SSH Terminal`);
+        terminal.sendText(sshCommand);
+        terminal.show();
+        vscode.window.showInformationMessage('✅ 终端已自动SSH连接远程服务器');
+    }
     context.subscriptions.push(
     // 配置映射
     vscode.commands.registerCommand('ibm-xlc-compile-deploy.configureMappings', asyncHandler(() => __awaiter(this, void 0, void 0, function* () {
@@ -252,10 +275,6 @@ function activate(context) {
     }))), 
     // 手动上传当前文件
     vscode.commands.registerCommand('ibm-xlc-compile-deploy.upload', asyncHandler(() => __awaiter(this, void 0, void 0, function* () {
-        const config = getConfig();
-        if (!config || !config.ftpConfig)
-            return;
-        const { localConfig, ftpConfig } = config;
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
             vscode.window.showErrorMessage('请先打开一个编辑的文件');
@@ -284,16 +303,16 @@ function activate(context) {
             yield uploadFile(relativePath, localConfig.inc, ftpConfig.remoteInc, ftpConfig, workspaceFolder, outputChannel);
             vscode.window.showInformationMessage('✅ inc 当前文件上传完成');
         }
+        else if (relativePath.startsWith(localConfig.mq)) {
+            yield uploadFile(relativePath, localConfig.mq, ftpConfig.remoteMq, ftpConfig, workspaceFolder, outputChannel);
+            vscode.window.showInformationMessage('✅ mq 当前文件上传完成');
+        }
         else {
-            vscode.window.showWarningMessage('⚠️ 当前文件不在 src、mak、inc 中');
+            vscode.window.showWarningMessage('⚠️ 当前文件不在 src、mak、inc、mq 中');
         }
     }))), 
     // 编译命令
     vscode.commands.registerCommand('ibm-xlc-compile-deploy.compileXLC', asyncHandler(() => __awaiter(this, void 0, void 0, function* () {
-        const config = getConfig();
-        if (!config || !config.ftpConfig)
-            return;
-        const { localConfig, ftpConfig } = config;
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
             vscode.window.showErrorMessage('请先打开一个编辑的文件以判断编译命令');
@@ -377,9 +396,6 @@ function activate(context) {
     }))), 
     // 部署命令
     vscode.commands.registerCommand('ibm-xlc-compile-deploy.deployXLC', asyncHandler(() => __awaiter(this, void 0, void 0, function* () {
-        const config = getConfig();
-        if (!config || !config.ftpConfig)
-            return;
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
             vscode.window.showErrorMessage('请先打开一个编辑的文件以判断部署命令');
@@ -417,6 +433,5 @@ function activate(context) {
         outputChannel.appendLine(`>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`);
         outputChannel.show(true);
     }))));
-    vscode.window.showInformationMessage('✅ XLC 编译部署插件已激活');
 }
 exports.activate = activate;
