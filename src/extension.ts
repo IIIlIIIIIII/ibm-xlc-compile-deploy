@@ -354,11 +354,11 @@ export function activate(context: vscode.ExtensionContext) {
             if (fileName.toUpperCase().startsWith('TX')) {
                 TX_BAT_ID = fileName.slice(2).toUpperCase();
                 compileCommand = `${ftpConfig.compileTXCommand} tx${TX_BAT_ID}.mak`;
-                deployCommand = ftpConfig.deployTXCommand;
+                deployCommand = ftpConfig.deployTXCommand + ` ${TX_BAT_ID}`;
             } else if (fileName.toUpperCase().startsWith('BAT')) {
                 TX_BAT_ID = fileName.slice(3).toUpperCase();
                 compileCommand = `${ftpConfig.compileBATCommand} bat${TX_BAT_ID}.mak`;
-                deployCommand = ftpConfig.deployBATCommand;
+                deployCommand = ftpConfig.deployBATCommand + ` BAT${TX_BAT_ID}`;
             } else {
                 vscode.window.showWarningMessage('⚠️ 无法识别 TX 或 BAT 开头的文件名');
                 return;
@@ -412,9 +412,9 @@ export function activate(context: vscode.ExtensionContext) {
                 await runRemoteCommands(ftpConfig, commands, '清理-编译-部署', outputChannel);
             }
             commands = []; // 清空命令
-            const confirmDeploy = await vscode.window.showWarningMessage('是否部署？', { modal: true }, '否', '是');
+            const confirmDeploy = await vscode.window.showWarningMessage(`是否部署${fileName}？`, { modal: true }, '否', '是');
             if (confirmDeploy === '是') {
-                commands.push(deployCommand + ` ${TX_BAT_ID}`);
+                commands.push(deployCommand);
             }
 
             if (commands.length > 0) {
@@ -439,20 +439,19 @@ export function activate(context: vscode.ExtensionContext) {
 
             if (fileName.toUpperCase().startsWith('TX')) {
                 TX_BAT_ID = fileName.slice(2).toUpperCase();
-                deployCommand = config.ftpConfig.deployTXCommand;
+                deployCommand = config.ftpConfig.deployTXCommand + ` ${TX_BAT_ID}`;
             } else if (fileName.toUpperCase().startsWith('BAT')) {
                 TX_BAT_ID = fileName.slice(3).toUpperCase();
-                deployCommand = config.ftpConfig.deployBATCommand;
+                deployCommand = config.ftpConfig.deployBATCommand + ` BAT${TX_BAT_ID}`;
             } else {
                 vscode.window.showWarningMessage('⚠️ 无法识别 TX 或 BAT 开头的文件名');
                 return;
             }
 
-            deployCommand += ` ${TX_BAT_ID}`;
             const commands: string[] = [];
-            const confirmDeploy = await vscode.window.showWarningMessage('是否部署？', { modal: true }, '确认');
+            const confirmDeploy = await vscode.window.showWarningMessage(`是否部署${fileName}？`, { modal: true }, '确认');
             if (confirmDeploy === '确认') {
-                commands.push(deployCommand + ` ${TX_BAT_ID}`);
+                commands.push(deployCommand);
             } else {
                 return;
             }
