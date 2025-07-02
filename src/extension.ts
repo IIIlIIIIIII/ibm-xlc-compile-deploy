@@ -53,10 +53,40 @@ async function uploadFile(
     try {
         await sftp.connect(ftpConfig);
         await sftp.put(absLocalPath, remotePath);
-        outputChannel.appendLine(`上传完成: ${remotePath}`);
+        outputChannel.appendLine(`上传完成: ${relativeToBase}`);
         outputChannel.show();
     } catch (err) {
         outputChannel.appendLine(`上传失败: ${err}`);
+        outputChannel.show();
+        throw err;
+    } finally {
+        await sftp.end();
+    }
+}
+
+async function downloadFile(
+    localPath: string,
+    localBase: string,
+    remoteBase: string,
+    ftpConfig: FtpConfig,
+    workspaceFolder: string,
+    outputChannel: vscode.OutputChannel
+) {
+    const sftp = new SftpClient();
+    const absLocalPath = path.join(workspaceFolder, localPath);
+    const relativeToBase = path.relative(localBase, localPath).replace(/\\/g, '/');
+    const remotePath = path.posix.join(remoteBase, relativeToBase);
+
+    outputChannel.appendLine(`连接 SFTP 下载文件: ${remotePath} -> ${absLocalPath}`);
+    outputChannel.show();
+
+    try {
+        await sftp.connect(ftpConfig);
+        await (sftp as any).get(remotePath, absLocalPath);
+        outputChannel.appendLine(`下载完成: ${relativeToBase}`);
+        outputChannel.show();
+    } catch (err) {
+        outputChannel.appendLine(`下载失败: ${err}`);
         outputChannel.show();
         throw err;
     } finally {
@@ -228,7 +258,7 @@ export function activate(context: vscode.ExtensionContext) {
         return;
     }
 
-    const configPath = path.join(workspaceFolder, '.ftp-mappings.json');
+    const configPath = path.join(workspaceFolder, '.vscode', 'ftp-mappings.json');
 
     const ensureConfigFile = () => {
         if (!fs.existsSync(configPath)) {
@@ -260,13 +290,13 @@ export function activate(context: vscode.ExtensionContext) {
             };
 
             fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2));
-            vscode.window.showInformationMessage('✅ 已生成默认 .ftp-mappings.json 配置文件');
+            vscode.window.showInformationMessage('✅ 已生成默认 ftp-mappings.json 配置文件');
         }
     };
 
     const getConfig = (): any => {
         if (!fs.existsSync(configPath)) {
-            vscode.window.showErrorMessage('.ftp-mappings.json 不存在');
+            vscode.window.showErrorMessage('ftp-mappings.json 不存在');
             return null;
         }
         return JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -333,6 +363,42 @@ export function activate(context: vscode.ExtensionContext) {
             } else if (relativePath.startsWith(localConfig.mq)) {
                 await uploadFile(relativePath, localConfig.mq, ftpConfig.remoteMq, ftpConfig, workspaceFolder, outputChannel);
                 vscode.window.showInformationMessage('✅ mq 当前文件上传完成');
+            } else {
+                vscode.window.showWarningMessage('⚠️ 当前文件不在配置映射路径中');
+            }
+        })),
+        // 手动下载服务器上当前文件
+        vscode.commands.registerCommand('ibm-xlc-compile-deploy.download', asyncHandler(async () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) {
+                vscode.window.showErrorMessage('请先打开一个编辑的文件');
+                return;
+            }
+
+            const currentFilePath = editor.document.uri.fsPath;
+            const relativePath = path.relative(workspaceFolder, currentFilePath).replace(/\\/g, '/');
+
+            outputChannel.appendLine('当前文件: ' + currentFilePath);
+            outputChannel.appendLine('相对路径: ' + relativePath);
+            outputChannel.appendLine('工作区: ' + workspaceFolder);
+            outputChannel.show();
+            const confirmUpload = await vscode.window.showWarningMessage(`是否下载服务器文件: ${relativePath}`, { modal: true }, '是');
+            if (confirmUpload !== '是') {
+                return;
+            }
+            if (relativePath.startsWith(localConfig.src)) {
+                await downloadFile(relativePath, localConfig.src, ftpConfig.remoteSrc, ftpConfig, workspaceFolder, outputChannel);
+                vscode.window.showInformationMessage('✅ src 当前文件下载完成');
+            } else if (relativePath.startsWith(localConfig.mak)) {
+                await convertToUnixLineEndings(currentFilePath);
+                await downloadFile(relativePath, localConfig.mak, ftpConfig.remoteMak, ftpConfig, workspaceFolder, outputChannel);
+                vscode.window.showInformationMessage('✅ mak 当前文件下载完成');
+            } else if (relativePath.startsWith(localConfig.inc)) {
+                await downloadFile(relativePath, localConfig.inc, ftpConfig.remoteInc, ftpConfig, workspaceFolder, outputChannel);
+                vscode.window.showInformationMessage('✅ inc 当前文件下载完成');
+            } else if (relativePath.startsWith(localConfig.mq)) {
+                await downloadFile(relativePath, localConfig.mq, ftpConfig.remoteMq, ftpConfig, workspaceFolder, outputChannel);
+                vscode.window.showInformationMessage('✅ mq 当前文件下载完成');
             } else {
                 vscode.window.showWarningMessage('⚠️ 当前文件不在配置映射路径中');
             }
@@ -406,6 +472,8 @@ export function activate(context: vscode.ExtensionContext) {
             const confirmClean = await vscode.window.showWarningMessage('是否清理？', { modal: true }, '否', '是');
             if (confirmClean === '是') {
                 commands.push(compileCommand + ' clean');
+            } else if (confirmClean !== '否') {
+                return;
             }
             commands.push(compileCommand);
             if (commands.length > 0) {
@@ -415,6 +483,8 @@ export function activate(context: vscode.ExtensionContext) {
             const confirmDeploy = await vscode.window.showWarningMessage(`是否部署${fileName}？`, { modal: true }, '否', '是');
             if (confirmDeploy === '是') {
                 commands.push(deployCommand);
+            } else if (confirmDeploy !== '否') {
+                return;
             }
 
             if (commands.length > 0) {
